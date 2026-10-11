@@ -1,5 +1,6 @@
 from random import randint
 import numpy as np
+import vegas
 
 
 
@@ -34,12 +35,46 @@ def summed_energy(m, path, tau, N, V):     #V is potential and is a function of 
 
 
 
+#array of several paths
+
+def all_paths(x_0, tau, x, N, j):
+
+    total_paths = np.empty(N+1)
+
+    for i in range(j):
+
+        time, path = randompathgen(x_0, tau, x, N).T
+
+        total_paths = np.vstack((path, total_paths))
+
+    return time, total_paths[:-1]
+
+print(all_paths(0,10,10,10,5))
+
+
+#weighted array of paths:
+
+'''
+def weights
+
+
+'''
 #Propagator function, G:
 
 
-def propagator(m, x_0, tau, N, x, V):
+def propagator(m, x_0, tau, N, x, V, L):      #technically G/A not G here
+
+    epsilon = tau/N
 
     time, path = randompathgen(x_0, tau, x, N).T   #transposes so can unpack rows successfully
 
     path_energy = summed_energy(m, path, tau, N, V)
+
+    weight = np.exp(-(epsilon * path_energy))
+
+    integ = vegas.Integrator([-L,L]*(N-1))
+
+    result = integ(weight, nitn=10, neval=1000)
+
+    return result
 
