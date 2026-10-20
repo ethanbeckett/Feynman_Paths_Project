@@ -2,6 +2,10 @@ from random import randint
 import numpy as np
 import vegas
 
+#For Z can also treat as an N dimensional integral and use VEGAS treating dx as the Nth variable to integrate over. Will have to redefine propagator again.
+#Trapezoid rule works well for Z if using already obtained propagator function as it is a 1D integral - so don't NEED VEGAS to do this.
+
+
 #INITIAL VALUES
 x_0 = 0
 tau = 4
@@ -10,6 +14,8 @@ N = 7
 m = 1
 k = 100 #number of paths generated
 bound = 2
+G_bound = 2
+Z_bound = 2
 
 def V(x):
     return 0.5*(x**2)
@@ -107,7 +113,7 @@ def propagator_integrand(m, x_ini, x_fin, tau, N, V):
     @vegas.batchintegrand   #allows vegas to pass many points at once
     def path_weights(y):
 
-        n = y.shape[0]  #selects number of points vegas has chosen to evaluate per path
+        n = y.shape[0]  #selects number of paths vegas has chosen to evaluate per point
         paths = np.empty((n, N + 1))
         paths[:, 0] = x_ini
         paths[:, -1] = x_fin
@@ -150,11 +156,76 @@ def propagator(N, m, x_ini, x_fin, tau, V, bound):     #technically G/A not G he
 
     return result
 
-result = propagator(N, m, x_0, x, tau, V, bound)
+G_result = propagator(N, m, x_0, x, tau, V, bound) #outputs G value at the point x
 
 
 #print(result.summary())
 #print(result.mean, result.sdev)
 
 
-print(result)
+#print(result)
+
+'''
+
+def Z(N, m, tau, V, G_bound, Z_bound): #G with x_ini = x_fin, integrated over x
+
+    integ = vegas.Integrator([[-Z_bound,Z_bound]])  #vegas does multidimensional monte carlo integration, dim = 1 here
+
+    @vegas.batchintegrand
+    def G_values(y):
+
+        n = y.shape[0]
+        G_value = np.empty([n, 1])
+
+        for i in range(n):
+
+            G_value[i] = propagator(N, m, y[i, 0], y[i, 0], tau, V, G_bound).mean  #returns mean as a float = G/A
+
+        return G_value
+     
+        
+
+    integ(G_values, nitn=10, neval=20000)   #warm-up run
+
+    Z_result = integ(G_values, nitn=10, neval=20000)
+
+    
+
+    return Z_result
+
+Z_result = Z(N,m, tau, V, G_bound, Z_bound)   #maybe change Z_bound to equal G_bound?
+
+print(Z_result.summary())
+
+''' #takes far too long to compute using nested VEGAS integration
+
+def Z(N, m, tau, V, G_bound, Z_bound): #G with x_ini = x_fin, integrated over x
+
+    xs = np.linspace(-Z_bound, Z_bound, 35) #35 x values to integrate G(x,x) over
+    G_values = np.empty_like(xs)
+    G_errors = np.empty_like(xs)
+
+    for i, x in enumerate(xs):
+        G_values[i] = propagator(N, m, x, x, tau, V, G_bound).mean   #G/A
+        G_errors[i] = propagator(N, m, x, x, tau, V, G_bound).sdev
+
+    Z = np.trapezoid(G_values, xs)
+    #Z_err = work out later
+
+    return Z
+
+Z_value = Z(N, m, tau, V, G_bound, Z_bound)
+
+G_value = G_result.mean
+
+print(Z_value)
+
+print(G_value)
+
+
+
+def phi_squared(G, Z): #can vary x using constants defined at top of code
+
+    return G/Z
+
+print(phi_squared(G_value, Z_value))
