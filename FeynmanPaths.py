@@ -1,6 +1,7 @@
 from random import randint
 import numpy as np
 import vegas
+import matplotlib.pyplot as plt
 
 #For Z can also treat as an N dimensional integral and use VEGAS treating dx as the Nth variable to integrate over. Will have to redefine propagator again.
 #Trapezoid rule works well for Z if using already obtained propagator function as it is a 1D integral - so don't NEED VEGAS to do this.
@@ -229,3 +230,31 @@ def phi_squared(G, Z): #can vary x using constants defined at top of code
     return G/Z
 
 print(phi_squared(G_value, Z_value))
+
+
+
+
+
+
+
+def feynman_phi_squared_plot(l):  #l = number of points to evaluate
+
+    xval = np.linspace(0, 2, l)
+    Gs = np.empty(l)
+    Z = Z_value
+
+    for i, x in enumerate(xval):
+
+        Gs[i] = propagator(N, m, x_0, x, tau, V, bound).mean
+
+    yval = phi_squared(Gs, Z)
+
+    return xval, yval
+
+
+xval_feynman = feynman_phi_squared_plot(10)[0]
+yval_feynman = feynman_phi_squared_plot(10)[1]
+
+plt.plot(xval_feynman, yval_feynman)
+plt.show()
+  
