@@ -22,6 +22,7 @@ k = 100 #number of paths generated
 bound = 5
 G_bound = 5
 Z_bound = 5
+l = 10  #number of points plotted 
 
 
 def V(x):
@@ -258,8 +259,8 @@ def feynman_phi_squared_plot(l):  #l = number of points to evaluate
     return xval, yval
 
 
-xval_feynman = feynman_phi_squared_plot(10)[0]
-yval_feynman = feynman_phi_squared_plot(10)[1]
+xval_feynman = feynman_phi_squared_plot(l)[0]
+yval_feynman = feynman_phi_squared_plot(l)[1]
 
 
 def SE_phi_squared(x):
@@ -286,25 +287,13 @@ def SE_phi_squared_plot(l):  #l = number of points to evaluate
     return xval, yval
 
 
-xval_SE = SE_phi_squared_plot(10)[0]
-yval_SE = SE_phi_squared_plot(10)[1]
+xval_SE = SE_phi_squared_plot(l)[0]
+yval_SE = SE_phi_squared_plot(l)[1]
 
 
 
-plt.errorbar(xval_feynman, yval_feynman, marker = '.', linestyle = 'none', color = 'b', label = 'Feynmann')
-plt.errorbar(xval_SE, yval_SE, marker = '.', linestyle = 'none', color = 'r', label = 'Schrodinger')
-plt.legend()
-plt.show()
 
 
-G_result_1 = propagator(N, m, 1, 1, tau, V, bound).mean
-
-Feynmann_1 = phi_squared(G_result_1, Z_value)
-Schrodinger_1 = SE_phi_squared(1)
-
-
-print("The value at x = 1 using the Feynmann Path Integral Approach is: ", Feynmann_1)
-print("The value at x = 1 using the Schrodinger analytical approach is: ", Schrodinger_1)
 
 
 
@@ -322,7 +311,7 @@ def randompathgen(x_0, tau, x, N):
     path = np.empty(N+1)
     path[0] = x_0
     path[-1] = x
-    path[1:-1] = x_j.uniform(-10000,10000,N-1)
+    path[1:-1] = x_j.uniform(-5,5,N-1)
 
     return np.column_stack((time, path))
 
@@ -368,8 +357,6 @@ def metropolis(x_0, tau, x, N, delta, m, V, n_sweeps, n_therm = 1000):    #n_the
     return optimised_paths #outputs every 50th path
 
 
-print(len(metropolis(x_0, tau, x, N, 0.5, m, V, 40000)))
-
 
 def met_propagator(x_0, tau, x, N, delta, m, V, n_sweeps):
 
@@ -385,8 +372,6 @@ def met_propagator(x_0, tau, x, N, delta, m, V, n_sweeps):
     hi = X.max(axis=0) + 2 * std
     amap = vegas.AdaptiveMap([[l, h] for l, h in zip(lo, hi)], ninc=50)
 
-    print(X.shape, fX.shape, path_weights(X[0]))
-
     # 4. Train the VEGAS map on the Metropolis samples
     amap.adapt_to_samples(X, fX, nitn=5)
 
@@ -398,8 +383,67 @@ def met_propagator(x_0, tau, x, N, delta, m, V, n_sweeps):
     return result
 
 
+def met_Z(N, m, tau, V, delta, n_sweeps, G_bound, Z_bound): #G with x_ini = x_fin, integrated over x
 
-print(met_propagator(1,tau,1,N,0.5,m,V,40000))
+    xs = np.linspace(-Z_bound, Z_bound, 35) #35 x values to integrate G(x,x) over
+    G_values = np.empty_like(xs)
+    G_errors = np.empty_like(xs)
+
+    for i, x in enumerate(xs):
+        G_values[i] = met_propagator(x, tau, x, N, delta, m, V, n_sweeps).mean   #G/A
+        G_errors[i] = met_propagator(x, tau, x, N, delta, m, V, n_sweeps).sdev
+
+    met_Z = np.trapezoid(G_values, xs)
+    #Z_err = work out later
+
+    return met_Z
+
+#Z_metropolis = met_Z(N, m, tau, V, 0.5, 40000, G_bound, Z_bound)
+
+
+def phi_met_squared(G_metropolis, Z_metropolis):
+
+    return G_metropolis/Z_metropolis
+
+
+def met_feynman_phi_squared_plot(l):  #l = number of points to evaluate
+
+    xval = np.linspace(0, 2, l)
+    Gs = np.empty(l)
+    Z = Z_metropolis
+
+    for i, x in enumerate(xval):
+
+        Gs[i] = met_propagator(x, tau, x, N, 0.5, m, V, 40000).mean
+
+    yval = phi_met_squared(Gs, Z)
+
+    return xval, yval
+
+
+#xval_met = met_feynman_phi_squared_plot(l)[0]
+#yval_met = met_feynman_phi_squared_plot(l)[1]
+
+
+plt.errorbar(xval_feynman, yval_feynman, marker = '.', linestyle = 'none', color = 'b', label = 'Feynman Vegas')
+plt.errorbar(xval_SE, yval_SE, marker = '.', linestyle = 'none', color = 'r', label = 'Schrodinger')
+#plt.errorbar(xval_met, yval_met, marker = '.', linestyle = 'none', color = 'g', label = 'Feynman Metropolis')
+plt.legend()
+plt.show()
+
+
+G_result_1 = propagator(N, m, 1, 1, tau, V, bound).mean
+Feynman_1 = phi_squared(G_result_1, Z_value)
+Schrodinger_1 = SE_phi_squared(1)
+#G_met_1 = met_propagator(1, tau, 1, N, 0.5, m, V, 40000).mean
+#Feynman_met_1 = phi_met_squared(G_met_1, Z_metropolis)
+
+
+print("The value at x = 1 using the Feynman Path Integral Approach with VEGAS only is: ", Feynman_1)
+#print("The value at x = 1 using the Feynman Path Integral Approach with Metropolis algorithm optimisation is:", Feynman_met_1)
+print("The value at x = 1 using the Schrodinger analytical approach is: ", Schrodinger_1)
+
+
 
 
 
